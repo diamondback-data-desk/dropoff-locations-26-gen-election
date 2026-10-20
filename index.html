@@ -34,7 +34,6 @@ function drawMain(points){
 function drawInset(county,points){
  inset.selectAll('*').remove();var w=300,h=230,pad=12;
  var projection=d3.geoMercator().fitExtent([[pad,pad],[w-pad,h-pad]],county), path=d3.geoPath(projection);
- inset.append('rect').attr('width',w).attr('height',h).attr('fill','#fff');
  inset.append('path').datum(county).attr('d',path).attr('fill','#e7e5df').attr('stroke','#8b8982').attr('stroke-width',1.6);
  inset.selectAll('circle').data(points).join('circle').attr('cx',d=>projection(d.geometry.coordinates)[0]).attr('cy',d=>projection(d.geometry.coordinates)[1]).attr('r',3.4).attr('fill',RED).attr('stroke','#fff').attr('stroke-width',0.8).append('title').text(d=>d.properties['DROP BOX NAME']);
  // Extent rectangle represents the main College Park view.
