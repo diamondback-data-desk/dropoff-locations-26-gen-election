@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prince George's County voting drop boxes</title>
+<style>
+html,body{margin:0;padding:0;background:#fff;color:#222;font-family:Helvetica,Arial,sans-serif}*{box-sizing:border-box}.map-shell{width:100%;max-width:1100px;margin:0 auto;padding:8px 4px}.map-title{font-size:clamp(22px,3.4vw,30px);font-weight:700;line-height:1.2;margin:4px 0 8px}.map-subtitle{font-size:16px;line-height:1.4;color:#555;margin:0 0 12px}.map-stage{position:relative;width:100%;overflow:hidden;background:#f4f3ef;border:1px solid #d9d7d0;aspect-ratio:1.48}.map-stage svg{display:block;width:100%;height:100%}.inset{position:absolute;right:12px;bottom:12px;width:clamp(130px,25%,245px);background:rgba(255,255,255,.97);border:1px solid #777;border-radius:2px;box-shadow:0 1px 5px #0002;padding:7px 7px 5px;z-index:3}.inset-title{font-size:clamp(9px,1.2vw,12px);font-weight:bold;line-height:1.2;margin:0 0 3px}.inset svg{display:block;width:100%;height:auto;aspect-ratio:1.2}.map-legend{font-size:12px;color:#555;display:flex;align-items:center;gap:6px;margin-top:8px}.legend-dot{width:9px;height:9px;border-radius:50%;background:#e51d37;display:inline-block;flex:none}.map-credit{font-size:11px;line-height:1.4;color:#666;margin-top:8px}.error{padding:16px;color:#8b0000;font-size:14px}@media(max-width:520px){.map-stage{aspect-ratio:.95}.inset{right:7px;bottom:7px;width:37%;padding:5px}.map-subtitle{font-size:14px}}
+</style></head><body><main class="map-shell"><h1 class="map-title">Prince George’s County voting drop boxes</h1><p class="map-subtitle">Drop boxes available for the general election, with a countywide locator.</p><div class="map-stage" id="map-stage"><svg id="main-map" viewBox="0 0 960 620" role="img" aria-label="Map of voting drop boxes near College Park"></svg><div class="inset"><div class="inset-title">PRINCE GEORGE’S COUNTY</div><svg id="county-inset" viewBox="0 0 300 230" role="img" aria-label="All drop boxes in Prince George’s County"></svg></div></div><div class="map-legend"><span class="legend-dot"></span> Election drop box</div><div class="map-credit">Map data © OpenStreetMap contributors · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">Attribution</a> · Graphic by The Diamondback</div><div id="map-error" class="error" hidden>Map data could not be loaded. Please try again later.</div></main>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script><script>
+(function(){
+var W=960,H=620, ZOOM=14, CENTER=[-76.9378,38.9897], RED='#e51d37';
+var stage=document.getElementById('map-stage'), main=d3.select('#main-map'), inset=d3.select('#county-inset');
+Promise.all([d3.json('./county.geojson'),d3.json('./dropboxes.geojson')]).then(function(files){
+ var county=files[0].features[0], points=files[1].features;
+ drawMain(points); drawInset(county,points);
+}).catch(function(e){console.error(e);document.getElementById('map-error').hidden=false;});
+function drawMain(points){
+ main.selectAll('*').remove();
+ var scale=256*Math.pow(2,ZOOM)/(2*Math.PI);
+ var proj=d3.geoMercator().scale(scale).translate([W/2-scale*CENTER[0]*Math.PI/180,H/2+scale*Math.log(Math.tan(Math.PI/4+CENTER[1]*Math.PI/180/2))]);
+ // Raster tiles provide streets/place labels without a Mapbox token; D3 draws the data overlay.
+ var cpx=(CENTER[0]+180)/360*256*Math.pow(2,ZOOM), latRad=CENTER[1]*Math.PI/180;
+ var cpy=(1-Math.asinh(Math.tan(latRad))/Math.PI)/2*256*Math.pow(2,ZOOM);
+ var left=cpx-W/2, top=cpy-H/2, xStart=Math.floor(left/256), yStart=Math.floor(top/256), xEnd=Math.floor((left+W)/256), yEnd=Math.floor((top+H)/256);
+ main.append('rect').attr('width',W).attr('height',H).attr('fill','#f1f0eb');
+ var tiles=[];for(var x=xStart;x<=xEnd;x++)for(var y=yStart;y<=yEnd;y++)tiles.push({x:x,y:y});
+ main.append('g').attr('class','tiles').selectAll('image').data(tiles).join('image').attr('x',d=>d.x*256-left).attr('y',d=>d.y*256-top).attr('width',256).attr('height',256).attr('href',d=>'https://tile.openstreetmap.org/'+ZOOM+'/'+d.x+'/'+d.y+'.png').attr('preserveAspectRatio','none');
+ // Pale wash keeps the markers legible while retaining roads and labels.
+ main.append('rect').attr('width',W).attr('height',H).attr('fill','#fff').attr('opacity',0.08);
+ var visible=points.filter(function(f){var p=f.geometry.coordinates;return p[0]>-76.99&&p[0]<-76.89&&p[1]>38.955&&p[1]<39.025;});
+ var g=main.append('g').attr('class','dropboxes');
+ g.selectAll('circle').data(visible).join('circle').attr('cx',d=>proj(d.geometry.coordinates)[0]).attr('cy',d=>proj(d.geometry.coordinates)[1]).attr('r',7).attr('fill',RED).attr('stroke','#fff').attr('stroke-width',2).append('title').text(d=>d.properties['DROP BOX NAME']+' — '+d.properties['DROP BOX ADDRESS']);
+ // If no points are in the initial viewport, show the closest locations rather than a blank map.
+ if(!visible.length){var near=points.slice().sort((a,b)=>dist(a)-dist(b)).slice(0,12);g.selectAll('circle').data(near).join('circle').attr('cx',d=>proj(d.geometry.coordinates)[0]).attr('cy',d=>proj(d.geometry.coordinates)[1]).attr('r',7).attr('fill',RED).attr('stroke','#fff').attr('stroke-width',2).append('title').text(d=>d.properties['DROP BOX NAME']);}
+ function dist(f){var c=f.geometry.coordinates;return Math.pow(c[0]-CENTER[0],2)+Math.pow(c[1]-CENTER[1],2)}
+}
+function drawInset(county,points){
+ inset.selectAll('*').remove();var w=300,h=230,pad=12;
+ var projection=d3.geoMercator().fitExtent([[pad,pad],[w-pad,h-pad]],county), path=d3.geoPath(projection);
+ inset.append('rect').attr('width',w).attr('height',h).attr('fill','#fff');
+ inset.append('path').datum(county).attr('d',path).attr('fill','#e7e5df').attr('stroke','#8b8982').attr('stroke-width',1.6);
+ inset.selectAll('circle').data(points).join('circle').attr('cx',d=>projection(d.geometry.coordinates)[0]).attr('cy',d=>projection(d.geometry.coordinates)[1]).attr('r',3.4).attr('fill',RED).attr('stroke','#fff').attr('stroke-width',0.8).append('title').text(d=>d.properties['DROP BOX NAME']);
+ // Extent rectangle represents the main College Park view.
+ var corners=[[-76.99,39.025],[-76.89,39.025],[-76.89,38.955],[-76.99,38.955],[-76.99,39.025]].map(projection);
+ inset.append('path').attr('d',d3.line()(corners)).attr('fill','none').attr('stroke','#333').attr('stroke-width',1.5).attr('stroke-dasharray','5 3');
+}
+})();
+</script></body></html>
